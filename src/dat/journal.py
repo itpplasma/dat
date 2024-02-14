@@ -8,31 +8,41 @@ import json
 import os
 from sys import argv
 
-ELAB_URL = os.environ.get("ELAB_URL")
-ELAB_KEY = os.environ.get("ELAB_KEY")
+def create_entry(title):
+    entry = {}
+    entry["title"] = title
+    return entry
 
-manager = elabapy.Manager(endpoint=ELAB_URL, token=ELAB_KEY)
+def copy_fields(from_entry, to_entry):
+    for key in from_entry:
+        to_entry[key] = from_entry[key]
 
-def main():
-    command = argv[1]
-    if command == "log":
-        create_experiment(code = argv[2], title = argv[3])
-    else:
-        print("Usage: journal.py log <code> <title>")
+class Storage:
+    def load(self, entry):
+        pass
 
+    def save(self, entry):
+        pass
 
-def create_experiment(code, title):
-    experiment = manager.create_experiment()
-    content = {"title": title, "metadata": json.dumps({
-               "extra_fields": {
-                   "code": {
-                        "type": "text",
-                        "value": code
-                   }
-               }})
-               }
-    print(manager.post_experiment(experiment["id"], content))
+class ElabStorage(Storage):
+    def __init__(self):
+        ELAB_URL = os.environ.get("ELAB_URL")
+        ELAB_KEY = os.environ.get("ELAB_KEY")
+        self.manager = elabapy.Manager(endpoint=ELAB_URL, token=ELAB_KEY)
 
+    def load(self, entry):
+        raise NotImplementedError
 
-if __name__ == "__main__":
-    main()
+    def create(self):
+        experiment = self.manager.create_experiment()["id"]
+        if experiment["result"] == "success":
+            entry = create_entry("Untitled")
+            entry["id"] = experiment["id"]
+            return entry
+        raise ValueError("Failed to create experiment on eLabFTW server.")
+
+    def save(self, entry):
+        if "id" in entry:
+            self.manager.post_experiment(entry["id"], entry)
+        else:
+            raise ValueError("entry['id'] is empty. Use create().")
