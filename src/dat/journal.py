@@ -34,7 +34,7 @@ class ElabStorage(Storage):
         raise NotImplementedError
 
     def create(self):
-        experiment = self.manager.create_experiment()["id"]
+        experiment = self.manager.create_experiment()
         if experiment["result"] == "success":
             entry = create_entry("Untitled")
             entry["id"] = experiment["id"]
