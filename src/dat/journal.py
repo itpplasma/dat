@@ -7,7 +7,7 @@ import elabapy
 import json
 import os
 
-def create_entry(title):
+def create_entry(title="Untitled"):
     entry = {}
     entry["title"] = title
     return entry
@@ -15,6 +15,14 @@ def create_entry(title):
 def copy_fields(from_entry, to_entry):
     for key in from_entry:
         to_entry[key] = from_entry[key]
+
+def has_title(entry):
+    if not "title" in entry:
+        return False
+    if entry["title"] in ["", "Untitled", None]:
+        return False
+    return True
+    
 
 
 class Storage:
@@ -71,3 +79,6 @@ class JSONStorage(Storage):
     def save(self, entry):
         with open(self.filename, "w") as f:
             json.dump(entry, f)
+
+    def exists(self):
+        return os.path.exists(self.filename)
