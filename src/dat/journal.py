@@ -36,7 +36,9 @@ def has_title(entry):
 def set_field(entry, name, value):
     """Store a field in eLabFTW-standard metadata inside an entry."""
     metadata = entry.setdefault("metadata", {})
-    extra = metadata.setdefault("elabftw", {}).setdefault("extra_fields", {})
+    # eLabFTW stores custom fields directly under metadata.extra_fields,
+    # with metadata.elabftw as a sibling.
+    extra = metadata.setdefault("extra_fields", {})
     extra[name] = {"type": "text", "value": str(value)}
     # Keep a plain copy for quick local access.
     entry[name] = str(value)
@@ -45,7 +47,7 @@ def set_field(entry, name, value):
 def get_field(entry, name):
     """Read a field from eLabFTW-standard metadata (falls back to plain key)."""
     metadata = entry.get("metadata", {})
-    extra = metadata.get("elabftw", {}).get("extra_fields", {})
+    extra = metadata.get("extra_fields", {})
     if name in extra:
         return extra[name].get("value")
     return entry.get(name)

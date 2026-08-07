@@ -85,9 +85,16 @@ def commit(args):
 
 def push(args):
     """Push results from RUN to DATA and set the run status finished."""
+    if args:
+        raise SystemExit("Usage: dat push (no arguments; syncs current dir)")
+
     entry = local_storage.load() if local_storage.exists() else create_entry()
     if get_status(entry) != STATUS_RUNNING:
         print("No running run found; starting a finished record from scratch.")
+
+    # Sync results first: only mark the run finished once the data is in DATA.
+    rclone_copy(RUN, DATA_ROOT)
+
     set_status(entry, STATUS_FINISHED)
     set_field(entry, "finished", time.strftime("%Y-%m-%dT%H:%M:%S"))
 
@@ -104,13 +111,6 @@ def push(args):
         db_status = f"unavailable ({exc})"
         print(f"Warning: could not update eLabFTW database: {exc}")
 
-    if args:
-        raise SystemExit("Usage: dat push (no arguments; syncs current dir)")
-
-    # Unidirectional sync of the current directory (RUN) to DATA.
-    rclone_copy(RUN, DATA_ROOT)
-    local_storage.save(entry)
-
     print(f"Pushed results and set status '{STATUS_FINISHED}' "
           f"(database: {db_status}).")
 
@@ -119,9 +119,20 @@ def pull(args):
     """Pull a subdirectory from DATA into the current directory (RUN)."""
     if not args:
         raise SystemExit("Usage: dat pull <path>")
-    path = args[0].rstrip("/")
-    source = os.path.join(DATA_ROOT, path)
-    destination = os.path.join(RUN, path)
+    path = args[0]
+    # Require a normalized relative path that stays inside RUN: reject
+    # absolute paths and any traversal out of the run directory.
+    raw = path.rstrip("/")
+    if not raw:
+        raise SystemExit("Usage: dat pull <path>")
+    norm = os.path.normpath(raw)
+    if os.path.isabs(raw) or norm == ".." or \
+            norm.startswith(".." + os.sep):
+        raise SystemExit(f"Invalid path: {path}")
+    if norm in ("", "."):
+        raise SystemExit("Usage: dat pull <path>")
+    source = os.path.join(DATA_ROOT, norm)
+    destination = os.path.join(RUN, norm)
     print(f"Pulling {source} into {destination}...")
     rclone_copy(source, destination)
     print("Pulled.")

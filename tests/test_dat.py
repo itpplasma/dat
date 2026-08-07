@@ -145,3 +145,26 @@ def test_push_without_commit_sets_finished(sandbox, fake_rclone):
 
     record = json.loads(metadata.read_text())
     assert record["status"] == "finished"
+
+
+def test_pull_rejects_traversal(sandbox, fake_rclone):
+    dat, _ = sandbox
+
+    for bad in ["../..", "/etc", "foo/../../bar", "/abs/../x"]:
+        with pytest.raises(SystemExit):
+            dat.pull([bad])
+
+    assert len(fake_rclone) == 0
+
+
+def test_set_status_uses_metadata_extra_fields():
+    from dat.journal import get_status, set_status
+
+    entry = create_entry()
+    set_status(entry, "running")
+
+    metadata = entry["metadata"]
+    # Custom fields live directly under metadata, with elabftw as a sibling.
+    assert metadata["extra_fields"]["status"]["value"] == "running"
+    assert "extra_fields" not in metadata.get("elabftw", {})
+    assert get_status(entry) == "running"
