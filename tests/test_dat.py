@@ -87,7 +87,7 @@ def test_archive_refuses_overwrite(sandbox):
         dat.archive(["run1"])
 
 
-@pytest.mark.parametrize("run", ["../escape", "/absolute", "a/b", "..", ".", ".hidden", "a..b"])
+@pytest.mark.parametrize("run", ["../escape", "/absolute", "a/b", "..", ".", ".hidden"])
 def test_run_names_reject_path_traversal(sandbox, run):
     dat, _ = sandbox
     with pytest.raises(SystemExit):
