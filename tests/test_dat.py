@@ -136,10 +136,11 @@ def test_push_sets_finished_and_syncs(sandbox, fake_rclone, fake_elab):
     assert len(fake_rclone) == 1
     assert str(dat.DATA_ROOT) in fake_rclone[0][1]
     assert fake_elab[0]["status"] == "finished"
-    # DATA must receive the final (finished) metadata, not a stale copy.
+    # DATA is synced before the run is marked finished, so it gets the
+    # metadata as it was during the transfer (still running).
     data_record = json.loads((dat.DATA_ROOT / "metadata.json").read_text())
-    assert data_record["status"] == "finished"
-    assert data_record["finished"] == record["finished"]
+    assert data_record["status"] == "running"
+    assert "finished" not in data_record
 
 
 def test_push_without_commit_sets_finished(sandbox, fake_rclone):
@@ -149,6 +150,23 @@ def test_push_without_commit_sets_finished(sandbox, fake_rclone):
 
     record = json.loads(metadata.read_text())
     assert record["status"] == "finished"
+
+
+def test_push_failed_transfer_keeps_running(sandbox, monkeypatch):
+    dat, metadata = sandbox
+    dat.commit(["-m", "Test run"])
+    assert json.loads(metadata.read_text())["status"] == "running"
+
+    def _fail(source, destination):
+        raise RuntimeError("transfer failed")
+
+    monkeypatch.setattr(dat, "rclone_copy", _fail)
+
+    with pytest.raises(RuntimeError):
+        dat.push([])
+
+    record = json.loads(metadata.read_text())
+    assert record["status"] == "running"
 
 
 def test_pull_rejects_traversal(sandbox, fake_rclone):
