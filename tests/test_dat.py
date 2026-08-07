@@ -136,6 +136,10 @@ def test_push_sets_finished_and_syncs(sandbox, fake_rclone, fake_elab):
     assert len(fake_rclone) == 1
     assert str(dat.DATA_ROOT) in fake_rclone[0][1]
     assert fake_elab[0]["status"] == "finished"
+    # DATA must receive the final (finished) metadata, not a stale copy.
+    data_record = json.loads((dat.DATA_ROOT / "metadata.json").read_text())
+    assert data_record["status"] == "finished"
+    assert data_record["finished"] == record["finished"]
 
 
 def test_push_without_commit_sets_finished(sandbox, fake_rclone):

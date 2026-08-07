@@ -92,14 +92,16 @@ def push(args):
     if get_status(entry) != STATUS_RUNNING:
         print("No running run found; starting a finished record from scratch.")
 
-    # Sync results first: only mark the run finished once the data is in DATA.
-    rclone_copy(RUN, DATA_ROOT)
-
+    # Mark the run finished and persist the final metadata first so it is
+    # never lost, then sync the completed run (including metadata) to DATA.
     set_status(entry, STATUS_FINISHED)
     set_field(entry, "finished", time.strftime("%Y-%m-%dT%H:%M:%S"))
 
     print(f"Updating {local_storage.filename}...")
     local_storage.save(entry)
+
+    # Sync results: the final metadata is now part of the push to DATA.
+    rclone_copy(RUN, DATA_ROOT)
 
     print("Updating eLabFTW database...")
     db_status = "ok"
