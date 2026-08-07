@@ -96,3 +96,16 @@ def test_run_names_reject_path_traversal(sandbox, run):
         dat.pull([run])
     with pytest.raises(SystemExit):
         dat.archive([run])
+
+
+def test_dispatch_unknown_command(sandbox):
+    dat, _ = sandbox
+    with pytest.raises(SystemExit) as exc:
+        dat.get_function_by_name("os")
+    assert "Unknown command: os" in str(exc.value)
+
+
+def test_dispatch_whitelist(sandbox):
+    dat, _ = sandbox
+    for name in ("commit", "push", "pull", "archive"):
+        assert dat.get_function_by_name(name) is getattr(dat, name)

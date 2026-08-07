@@ -39,7 +39,7 @@ def main():
 
 def get_function_by_name(name):
     try:
-        return globals()[name]
+        return COMMANDS[name]
     except KeyError:
         raise SystemExit(f"Unknown command: {name}")
 
@@ -104,6 +104,14 @@ def archive(args):
     move(src, dst)
     record_run(run, archive=dst)
     print("Archived.")
+
+
+COMMANDS = {
+    "commit": commit,
+    "push": push,
+    "pull": pull,
+    "archive": archive,
+}
 
 
 def copy_tree(src, dst):
