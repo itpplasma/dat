@@ -85,3 +85,14 @@ def test_archive_refuses_overwrite(sandbox):
 
     with pytest.raises(FileExistsError):
         dat.archive(["run1"])
+
+
+@pytest.mark.parametrize("run", ["../escape", "/absolute", "a/b", "..", ".", ".hidden", "a..b"])
+def test_run_names_reject_path_traversal(sandbox, run):
+    dat, _ = sandbox
+    with pytest.raises(SystemExit):
+        dat.push([run])
+    with pytest.raises(SystemExit):
+        dat.pull([run])
+    with pytest.raises(SystemExit):
+        dat.archive([run])

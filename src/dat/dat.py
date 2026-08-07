@@ -1,4 +1,5 @@
 import os
+import re
 import shutil
 import sys
 
@@ -12,6 +13,18 @@ DATA_ARCHIVE = os.environ.get("DAT_ARCHIVE", "/proj/plasma/archive")
 
 entry = create_entry()
 local_storage = JSONStorage("metadata.json")
+
+
+def validate_run(run):
+    """Ensure a run name is a safe single directory name.
+
+    Only allows plain names without path separators or parent-directory
+    components, so paths built from it stay beneath the configured roots.
+    """
+    if not run or run in (".", "..") or run.startswith("."):
+        raise SystemExit(f"Invalid run name: {run!r}")
+    if re.fullmatch(r"[A-Za-z0-9_.-]+", run) is None:
+        raise SystemExit(f"Invalid run name: {run!r}")
 
 
 def main():
@@ -51,6 +64,7 @@ def push(args):
     if not args:
         raise SystemExit("Usage: dat push <run>")
     run = args[0]
+    validate_run(run)
     src = os.path.join(DATA_TEMP, run)
     dst = os.path.join(DATA_MAIN, run)
     if not os.path.exists(src):
@@ -65,6 +79,7 @@ def pull(args):
     if not args:
         raise SystemExit("Usage: dat pull <run>")
     run = args[0]
+    validate_run(run)
     src = os.path.join(DATA_MAIN, run)
     dst = os.path.join(DATA_TEMP, run)
     if not os.path.exists(src):
@@ -79,6 +94,7 @@ def archive(args):
     if not args:
         raise SystemExit("Usage: dat archive <run>")
     run = args[0]
+    validate_run(run)
     src = os.path.join(DATA_MAIN, run)
     dst = os.path.join(DATA_ARCHIVE, run)
     if not os.path.exists(src):
