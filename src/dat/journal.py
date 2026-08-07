@@ -7,14 +7,23 @@ import elabapy
 import json
 import os
 
+STATUS_RUNNING = "running"
+STATUS_FINISHED = "finished"
+
+# Automatic metadata fields recorded for every committed run.
+AUTO_FIELDS = ("title", "message", "status", "started", "finished")
+
+
 def create_entry(title="Untitled"):
     entry = {}
     entry["title"] = title
     return entry
 
+
 def copy_fields(from_entry, to_entry):
     for key in from_entry:
         to_entry[key] = from_entry[key]
+
 
 def has_title(entry):
     if not "title" in entry:
@@ -22,7 +31,33 @@ def has_title(entry):
     if entry["title"] in ["", "Untitled", None]:
         return False
     return True
-    
+
+
+def set_field(entry, name, value):
+    """Store a field in eLabFTW-standard metadata inside an entry."""
+    metadata = entry.setdefault("metadata", {})
+    extra = metadata.setdefault("elabftw", {}).setdefault("extra_fields", {})
+    extra[name] = {"type": "text", "value": str(value)}
+    # Keep a plain copy for quick local access.
+    entry[name] = str(value)
+
+
+def get_field(entry, name):
+    """Read a field from eLabFTW-standard metadata (falls back to plain key)."""
+    metadata = entry.get("metadata", {})
+    extra = metadata.get("elabftw", {}).get("extra_fields", {})
+    if name in extra:
+        return extra[name].get("value")
+    return entry.get(name)
+
+
+def set_status(entry, status):
+    set_field(entry, "status", status)
+
+
+def get_status(entry):
+    value = get_field(entry, "status")
+    return value
 
 
 class Storage:
@@ -52,7 +87,10 @@ class ElabStorage(Storage):
 
     def save(self, entry):
         if "id" in entry:
-            self.manager.post_experiment(entry["id"], entry)
+            # eLabFTW expects the metadata serialised as a JSON string.
+            content = {"title": entry.get("title", "Untitled"),
+                       "metadata": json.dumps(entry.get("metadata", {}))}
+            self.manager.post_experiment(entry["id"], content)
         else:
             raise ValueError("entry['id'] is empty. Use create().")
 
@@ -78,7 +116,7 @@ class JSONStorage(Storage):
 
     def save(self, entry):
         with open(self.filename, "w") as f:
-            json.dump(entry, f)
+            json.dump(entry, f, indent=2, sort_keys=True)
 
     def exists(self):
         return os.path.exists(self.filename)
