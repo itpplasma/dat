@@ -31,5 +31,6 @@ as an experiment entry in the eLabFTW database.
 * `dat commit -m <message>` — write the title (and optional body after a
   newline) plus automatically retrieved information to `metadata.json` and
   create a database entry with status `running`.
-* `dat push` — set the run status to `finished`, update the database, and
-  unidirectionally copy the current directory from RUN to DATA.
+* `dat push` — unidirectionally copy the current directory from RUN to DATA
+  (immutable; existing files are never overwritten), then push the final
+  `metadata.json` with status `finished` and update the database.

@@ -1,1 +1,1 @@
-elabapy
+elabapi-python>=5.0.0

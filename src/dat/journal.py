@@ -1,11 +1,12 @@
 """
 Interface to electronic lab journal https://elabftw.tugraz.at/
-See https://alexgu2008.github.io/elabftw_api_support/
+Uses the official eLabFTW API v2 client (elabapi-python).
 """
 
-import elabapy
 import json
 import os
+
+import elabapi_python
 
 STATUS_RUNNING = "running"
 STATUS_FINISHED = "finished"
@@ -74,25 +75,31 @@ class ElabStorage(Storage):
     def __init__(self):
         ELAB_URL = os.environ.get("ELAB_URL")
         ELAB_KEY = os.environ.get("ELAB_KEY")
-        self.manager = elabapy.Manager(endpoint=ELAB_URL, token=ELAB_KEY)
+        if not ELAB_URL or not ELAB_KEY:
+            raise ValueError("ELAB_URL and ELAB_KEY must be set.")
+        configuration = elabapi_python.Configuration()
+        configuration.host = ELAB_URL.rstrip("/") + "/api/v2"
+        configuration.api_key["Authorization"] = ELAB_KEY
+        self.experiments = elabapi_python.ExperimentsApi(
+            elabapi_python.ApiClient(configuration))
 
     def load(self, entry):
         raise NotImplementedError
 
     def create(self):
-        experiment = self.manager.create_experiment()
-        if experiment["result"] == "success":
-            entry = create_entry("Untitled")
-            entry["id"] = experiment["id"]
-            return entry
-        raise ValueError("Failed to create experiment on eLabFTW server.")
+        body = elabapi_python.EntityEditable(title="Untitled")
+        experiment = self.experiments.post_experiment(body=body)
+        entry = create_entry("Untitled")
+        entry["id"] = experiment.id
+        return entry
 
     def save(self, entry):
         if "id" in entry:
-            # eLabFTW expects the metadata serialised as a JSON string.
-            content = {"title": entry.get("title", "Untitled"),
-                       "metadata": json.dumps(entry.get("metadata", {}))}
-            self.manager.post_experiment(entry["id"], content)
+            # eLabFTW expects the metadata serialised as a JSON object.
+            body = elabapi_python.EntityEditable(
+                title=entry.get("title", "Untitled"),
+                metadata=entry.get("metadata", {}))
+            self.experiments.patch_experiment(body, entry["id"])
         else:
             raise ValueError("entry['id'] is empty. Use create().")
 

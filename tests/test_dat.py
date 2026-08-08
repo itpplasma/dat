@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+import subprocess
 import sys
 
 import pytest
@@ -33,8 +34,8 @@ def fake_rclone(sandbox, monkeypatch):
     dat, _ = sandbox
     calls = []
 
-    def _rclone_copy(source, destination):
-        calls.append((str(source), str(destination)))
+    def _rclone_copy(source, destination, exclude=None):
+        calls.append((str(source), str(destination), exclude))
         # Mimic rclone copying the tree.
         if os.path.isdir(source):
             for root, dirs, files in os.walk(source):
@@ -43,6 +44,8 @@ def fake_rclone(sandbox, monkeypatch):
                             if rel != "." else destination)
                 os.makedirs(dest_dir, exist_ok=True)
                 for name in files:
+                    if exclude and name == exclude:
+                        continue
                     shutil.copy2(os.path.join(root, name),
                                  os.path.join(dest_dir, name))
         else:
@@ -83,8 +86,11 @@ def test_pull_copies_data_to_run(sandbox, fake_rclone):
 
     dat.pull(["templates"])
 
-    assert (dat.RUN / "templates" / "input.h5").read_text() == "data"
+    # The contents of DATA/templates land directly in RUN, not RUN/templates.
+    assert (dat.RUN / "input.h5").read_text() == "data"
     assert len(fake_rclone) == 1
+    assert str(fake_rclone[0][0]).endswith("templates")
+    assert fake_rclone[0][1] == str(dat.RUN)
 
 
 def test_pull_requires_path(sandbox):
@@ -132,15 +138,17 @@ def test_push_sets_finished_and_syncs(sandbox, fake_rclone, fake_elab):
     record = json.loads(metadata.read_text())
     assert record["status"] == "finished"
     assert "finished" in record
-    # Current run dir synced to DATA.
-    assert len(fake_rclone) == 1
+    # Two copies: the data sync, then the final metadata push.
+    assert len(fake_rclone) == 2
     assert str(dat.DATA_ROOT) in fake_rclone[0][1]
+    # The data sync excludes the running metadata so the archive never holds
+    # a stale "running" status.
+    assert fake_rclone[0][2] == "metadata.json"
     assert fake_elab[0]["status"] == "finished"
-    # DATA is synced before the run is marked finished, so it gets the
-    # metadata as it was during the transfer (still running).
+    # DATA receives the final, finished metadata.
     data_record = json.loads((dat.DATA_ROOT / "metadata.json").read_text())
-    assert data_record["status"] == "running"
-    assert "finished" not in data_record
+    assert data_record["status"] == "finished"
+    assert "finished" in data_record
 
 
 def test_push_without_commit_sets_finished(sandbox, fake_rclone):
@@ -157,7 +165,7 @@ def test_push_failed_transfer_keeps_running(sandbox, monkeypatch):
     dat.commit(["-m", "Test run"])
     assert json.loads(metadata.read_text())["status"] == "running"
 
-    def _fail(source, destination):
+    def _fail(source, destination, exclude=None):
         raise RuntimeError("transfer failed")
 
     monkeypatch.setattr(dat, "rclone_copy", _fail)
@@ -177,6 +185,34 @@ def test_pull_rejects_traversal(sandbox, fake_rclone):
             dat.pull([bad])
 
     assert len(fake_rclone) == 0
+
+
+def test_rclone_copy_uses_data_safety_flags(sandbox, monkeypatch):
+    dat, _ = sandbox
+    calls = []
+
+    def _run(cmd, check):
+        calls.append(cmd)
+
+    monkeypatch.setattr(subprocess, "run", _run)
+
+    dat.rclone_copy("/src", "/dst")
+
+    assert len(calls) == 1
+    cmd = calls[0]
+    assert cmd[0] == "rclone"
+    assert cmd[1] == "copy"
+    assert "--ignore-existing" in cmd
+    assert "--immutable" in cmd
+    assert cmd[-2:] == ["/src", "/dst"]
+
+
+def test_unknown_command_exits_2(sandbox, monkeypatch):
+    dat, _ = sandbox
+    with pytest.raises(SystemExit) as excinfo:
+        dat.main()
+        dat.COMMANDS["os"]  # ensure os is not exposed as a command
+    assert excinfo.value.code == 2
 
 
 def test_set_status_uses_metadata_extra_fields():
